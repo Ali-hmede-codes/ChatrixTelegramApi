@@ -12,6 +12,13 @@ function load() {
     const data = JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8"));
     registry = data.registry || {};
     nextUid = data.nextUid || 1;
+
+    for (const [uid, entry] of Object.entries(registry)) {
+      if (entry.enabled === undefined) {
+        entry.enabled = true;
+      }
+    }
+    save();
   }
 }
 
@@ -32,6 +39,7 @@ function assignUid(channelId, name, username) {
     telegramId: String(channelId),
     name: name || "",
     username: username || null,
+    enabled: true,
   };
   save();
   return uid;
@@ -54,7 +62,22 @@ function getAll() {
     telegramId: v.telegramId,
     name: v.name,
     username: v.username,
+    enabled: v.enabled !== undefined ? v.enabled : true,
   }));
+}
+
+function getAllEnabled() {
+  return getAll().filter((c) => c.enabled);
+}
+
+function toggleEnabled(uid) {
+  const key = parseInt(uid);
+  const entry = registry[key];
+  if (!entry) return null;
+
+  entry.enabled = entry.enabled !== undefined ? !entry.enabled : false;
+  save();
+  return { uid: key, ...entry };
 }
 
 function resolveIdentifier(identifier) {
@@ -91,4 +114,4 @@ function syncRegistry(activeTelegramIds) {
   if (changed) save();
 }
 
-module.exports = { assignUid, getByUid, getByTelegramId, getAll, resolveIdentifier, save, removeByUid, syncRegistry };
+module.exports = { assignUid, getByUid, getByTelegramId, getAll, getAllEnabled, toggleEnabled, resolveIdentifier, save, removeByUid, syncRegistry };

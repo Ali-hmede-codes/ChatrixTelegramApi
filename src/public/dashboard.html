@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHATRIX — Telegram Channel Dashboard</title>
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CHATRIX — Telegram Channel Dashboard</h1>
+    </header>
+
+    <section class="channels">
+      <h2>CHANNELS</h2>
+      <div id="channel-list" class="channel-grid">
+        <p class="loading">Loading channels...</p>
+      </div>
+    </section>
+
+    <section class="feed">
+      <h2>LIVE FEED <span id="feed-window-label">(Last 1 hour — deduplicated)</span></h2>
+      <div id="feed-list" class="feed-messages">
+        <p class="loading">Loading feed...</p>
+      </div>
+    </section>
+
+    <footer class="stats">
+      <span id="stats-text">Loading stats...</span>
+    </footer>
+  </div>
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

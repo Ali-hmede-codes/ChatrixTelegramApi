@@ -2,6 +2,8 @@ const EventEmitter = require("events");
 const { NewMessage } = require("telegram/events");
 const { getClient } = require("../client/telegram");
 const { formatMessage } = require("../services/messages");
+const { getEngine } = require("../services/dedupEngine");
+const registry = require("../services/channelRegistry");
 const config = require("../config");
 
 const emitter = new EventEmitter();
@@ -25,10 +27,36 @@ async function startListening() {
       ""
     );
 
+    const regEntry = registry.getByTelegramId(channelId);
+    if (regEntry && !regEntry.enabled) return;
+
     const formatted = formatMessage(message);
     formatted.channelId = channelId;
+    if (regEntry) formatted.channelUid = regEntry.uid;
 
-    emitter.emit("message", formatted);
+    if (config.dedup.enabled && formatted.text && formatted.text.length >= 10) {
+      const engine = getEngine();
+      const dedupResult = engine.checkDuplicate(
+        message.text || "",
+        formatted.id,
+        formatted.channelUid || 0,
+        formatted.date
+      );
+
+      if (dedupResult.isDuplicate) {
+        formatted.isDuplicate = true;
+        formatted.duplicateOf = dedupResult.duplicateOf;
+        formatted.originalChannel = dedupResult.originalChannel;
+        formatted.similarity = dedupResult.similarity;
+        emitter.emit("duplicate", formatted);
+      } else {
+        formatted.isDuplicate = false;
+        emitter.emit("message", formatted);
+      }
+    } else {
+      formatted.isDuplicate = false;
+      emitter.emit("message", formatted);
+    }
   }, new NewMessage({}));
 
   console.log("Real-time listener started");
@@ -42,4 +70,12 @@ function offMessage(callback) {
   emitter.off("message", callback);
 }
 
-module.exports = { startListening, onMessage, offMessage, emitter };
+function onDuplicate(callback) {
+  emitter.on("duplicate", callback);
+}
+
+function offDuplicate(callback) {
+  emitter.off("duplicate", callback);
+}
+
+module.exports = { startListening, onMessage, offMessage, onDuplicate, offDuplicate, emitter };

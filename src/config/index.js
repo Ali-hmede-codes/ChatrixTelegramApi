@@ -28,4 +28,14 @@ module.exports = {
     enabled: process.env.REALTIME_ENABLED === "true",
     channels: (process.env.REALTIME_CHANNELS || "").split(",").filter(Boolean),
   },
+  dedup: {
+    enabled: process.env.DEDUP_ENABLED === "true",
+    windowHours: parseInt(process.env.DEDUP_WINDOW_HOURS || "1"),
+    similarityThreshold: parseFloat(process.env.DEDUP_SIMILARITY_THRESHOLD || "0.75"),
+  },
+  feed: {
+    defaultLimit: parseInt(process.env.FEED_DEFAULT_LIMIT || "50"),
+    maxLimit: parseInt(process.env.FEED_MAX_LIMIT || "200"),
+    defaultHours: parseInt(process.env.FEED_DEFAULT_HOURS || "1"),
+  },
 };

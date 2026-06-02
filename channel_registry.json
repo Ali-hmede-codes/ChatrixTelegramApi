@@ -3,37 +3,44 @@
     "1": {
       "telegramId": "-1002448697799",
       "name": "RT Arabic - عاجل",
-      "username": "RTarabic_br"
+      "username": "RTarabic_br",
+      "enabled": true
     },
     "2": {
       "telegramId": "-1001006840823",
       "name": "قناة الجزيرة",
-      "username": "AjaNews"
+      "username": "AjaNews",
+      "enabled": true
     },
     "3": {
       "telegramId": "-1001008206734",
       "name": "ليبانون ديبايت",
-      "username": "lebanondebate"
+      "username": "lebanondebate",
+      "enabled": true
     },
     "4": {
       "telegramId": "-1001002129373",
       "name": "قناة الميادين | عاجل",
-      "username": "almayadeen"
+      "username": "almayadeen",
+      "enabled": true
     },
     "5": {
       "telegramId": "-1002721887673",
       "name": "manarbreaking | المنار عاجل",
-      "username": "manarbreaking"
+      "username": "manarbreaking",
+      "enabled": true
     },
     "6": {
       "telegramId": "-1002410590440",
       "name": "التلفزيون العربي - عاجل",
-      "username": "AlarabyTvBrk"
+      "username": "AlarabyTvBrk",
+      "enabled": true
     },
     "7": {
       "telegramId": "-1001917130438",
       "name": "Al-Akhbar -جريدة الأخبار",
-      "username": "alakhbar_news"
+      "username": "alakhbar_news",
+      "enabled": true
     }
   },
   "nextUid": 8

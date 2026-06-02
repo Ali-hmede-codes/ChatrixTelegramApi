@@ -1,5 +1,5 @@
 const express = require("express");
-const { onMessage, offMessage } = require("../realtime/listener");
+const { onMessage, offMessage, onDuplicate, offDuplicate } = require("../realtime/listener");
 
 const router = express.Router();
 
@@ -14,19 +14,32 @@ router.get("/events", (req, res) => {
   const clientId = Date.now();
   sseClients.add(res);
 
-  const handler = (message) => {
+  const messageHandler = (message) => {
     const allowed = req.query.channels;
     if (allowed) {
       const filter = allowed.split(",");
-      if (!filter.includes(message.channelId)) return;
+      const uid = String(message.channelUid || message.channelId);
+      if (!filter.includes(uid)) return;
     }
-    res.write(`data: ${JSON.stringify(message)}\n\n`);
+    res.write(`event: message\ndata: ${JSON.stringify(message)}\n\n`);
   };
 
-  onMessage(handler);
+  const duplicateHandler = (message) => {
+    const allowed = req.query.channels;
+    if (allowed) {
+      const filter = allowed.split(",");
+      const uid = String(message.channelUid || message.channelId);
+      if (!filter.includes(uid)) return;
+    }
+    res.write(`event: duplicate\ndata: ${JSON.stringify(message)}\n\n`);
+  };
+
+  onMessage(messageHandler);
+  onDuplicate(duplicateHandler);
 
   req.on("close", () => {
-    offMessage(handler);
+    offMessage(messageHandler);
+    offDuplicate(duplicateHandler);
     sseClients.delete(res);
   });
 });
