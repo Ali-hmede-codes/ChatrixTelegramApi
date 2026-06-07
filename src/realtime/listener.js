@@ -2,6 +2,7 @@ const EventEmitter = require("events");
 const { NewMessage } = require("telegram/events");
 const { getClient } = require("../client/telegram");
 const { formatMessage } = require("../services/messages");
+const { checkDuplicate } = require("../services/newsDedup");
 const config = require("../config");
 
 const emitter = new EventEmitter();
@@ -27,6 +28,20 @@ async function startListening() {
 
     const formatted = formatMessage(message);
     formatted.channelId = channelId;
+
+    if (config.dedup?.enabled) {
+      const dedupResult = checkDuplicate(formatted);
+      formatted.isDuplicate = dedupResult.isDuplicate;
+      if (dedupResult.isDuplicate) {
+        formatted.duplicateOf = dedupResult.duplicateOf;
+        formatted.duplicateChannel = dedupResult.duplicateChannel;
+        formatted.similarity = dedupResult.similarity;
+      }
+
+      if (dedupResult.isDuplicate && config.dedup?.skipDuplicates) {
+        return;
+      }
+    }
 
     emitter.emit("message", formatted);
   }, new NewMessage({}));

@@ -28,4 +28,9 @@ module.exports = {
     enabled: process.env.REALTIME_ENABLED === "true",
     channels: (process.env.REALTIME_CHANNELS || "").split(",").filter(Boolean),
   },
+  dedup: {
+    enabled: process.env.DEDUP_ENABLED === "true",
+    similarityThreshold: parseFloat(process.env.DEDUP_SIMILARITY_THRESHOLD || "0.6"),
+    skipDuplicates: process.env.DEDUP_SKIP_DUPLICATES === "true",
+  },
 };

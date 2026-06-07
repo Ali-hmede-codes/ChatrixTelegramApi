@@ -1,5 +1,6 @@
 const express = require("express");
 const { onMessage, offMessage } = require("../realtime/listener");
+const { getStoreStats } = require("../services/newsDedup");
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.get("/status", (req, res) => {
     success: true,
     connectedClients: sseClients.size,
     realtimeEnabled: require("../config").realtime.enabled,
+    dedup: getStoreStats(),
   });
 });
 
