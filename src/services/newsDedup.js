@@ -33,12 +33,12 @@ function checkDuplicate(message) {
   cleanupExpired();
 
   const text = message.text || "";
-  if (!text || text.trim().length < 5) {
+  if (!text || text.trim().length < 3) {
     return { isDuplicate: false, duplicateOf: null, similarity: 0 };
   }
 
   const signature = buildTextSignature(text);
-  if (signature.size < 2) {
+  if (signature.size < 1) {
     return { isDuplicate: false, duplicateOf: null, similarity: 0 };
   }
 
