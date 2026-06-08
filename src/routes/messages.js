@@ -19,7 +19,7 @@ router.get("/:channel", async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
     const messages = await getMessages(identifier, limit, offset);
     const deduped = filterDuplicates(messages, {
-      hideDuplicates: req.query.dedup === "filter",
+      showDuplicates: req.query.dedup === "show",
     });
     res.json({ success: true, data: deduped });
   } catch (err) {

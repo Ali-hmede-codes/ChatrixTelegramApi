@@ -59,7 +59,17 @@ function checkDuplicate(message, timestampMs) {
     }
 
     const similarity = jaccardSimilarity(signature, stored.signature);
-    if (similarity >= threshold) {
+
+    // Require at least one word that differs between the two messages.
+    // Short messages that share a common template (e.g. "artillery shelling on X")
+    // can reach the Jaccard threshold even though the location makes them
+    // completely different news events.  If the unique words are identical,
+    // there is nothing new to report.
+    const uniqueWords = new Set([...signature, ...stored.signature]);
+    const sharedWords = [...signature].filter((w) => stored.signature.has(w));
+    const hasNewContent = uniqueWords.size > sharedWords.length;
+
+    if (similarity >= threshold && !hasNewContent) {
       // Also store the duplicate so it extends the dedup window
       messageStore.push({
         messageId: message.id,
@@ -100,13 +110,12 @@ function getStoreStats() {
   };
 }
 
-// Annotate duplicates in a batch of messages (for the messages API).
+// Filter duplicates from a batch of messages (for the messages API).
 // Uses the GLOBAL messageStore so results are cached across API calls and real-time.
 // Uses each message's actual `date` field (Unix timestamp) as the store timestamp.
 // Processes messages in chronological order (oldest first) so the first occurrence is kept.
-// Duplicates are NOT removed by default \u2014 they are annotated with isDuplicate, duplicateOf, similarity.
-// If `hideDuplicates` is true, duplicate messages are excluded from the result.
-function filterDuplicates(messages, { hideDuplicates = false } = {}) {
+// Duplicates are removed by default. Set `showDuplicates: true` to annotate instead of remove.
+function filterDuplicates(messages, { showDuplicates = false } = {}) {
   if (!config.dedup?.enabled) return messages;
 
   // Sort by date ascending (oldest first) so first occurrence is kept as non-duplicate
@@ -126,7 +135,7 @@ function filterDuplicates(messages, { hideDuplicates = false } = {}) {
       msg.isDuplicate = false;
     }
 
-    if (hideDuplicates && result.isDuplicate) {
+    if (!showDuplicates && result.isDuplicate) {
       continue;
     }
 
