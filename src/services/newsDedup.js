@@ -142,7 +142,8 @@ function filterDuplicates(messages, { showDuplicates = false } = {}) {
     results.push(msg);
   }
 
-  return results;
+  // Return newest messages first
+  return results.sort((a, b) => (b.date || 0) - (a.date || 0));
 }
 
 // Reset store (for testing only)
