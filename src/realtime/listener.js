@@ -30,7 +30,7 @@ async function startListening() {
     formatted.channelId = channelId;
 
     if (config.dedup?.enabled) {
-      const dedupResult = checkDuplicate(formatted);
+      const dedupResult = checkDuplicate(formatted, formatted.date * 1000);
       formatted.isDuplicate = dedupResult.isDuplicate;
       if (dedupResult.isDuplicate) {
         formatted.duplicateOf = dedupResult.duplicateOf;

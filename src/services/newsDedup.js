@@ -1,10 +1,11 @@
 const { normalizeArabic, getArabicWords, getOrdinalGroup } = require("../utils/arabicDetection");
 const config = require("../config");
 
-// Global store used ONLY by the real-time listener.
-// The messages API (filterDuplicates) uses its own local store per call
-// to avoid cross-contamination between real-time and API results.
-const globalStore = [];
+// Global store shared by BOTH the real-time listener and the messages API.
+// The API is protected from false-positives by the timestamp guard in
+// checkDuplicate: an older original can never be flagged as a duplicate
+// of a newer copy that the real-time listener stored first.
+const messageStore = [];
 const HOUR_MS = 60 * 60 * 1000;
 
 function jaccardSimilarity(setA, setB) {
@@ -20,18 +21,17 @@ function jaccardSimilarity(setA, setB) {
   return union === 0 ? 0 : intersection / union;
 }
 
-function cleanupExpired(store) {
+function cleanupExpired() {
   const now = Date.now();
-  for (let i = store.length - 1; i >= 0; i--) {
-    if (now - store[i].timestamp > HOUR_MS) {
-      store.splice(i, 1);
+  for (let i = messageStore.length - 1; i >= 0; i--) {
+    if (now - messageStore[i].timestamp > HOUR_MS) {
+      messageStore.splice(i, 1);
     }
   }
 }
 
-function checkDuplicate(message, timestampMs, store) {
-  store = store || globalStore;
-  cleanupExpired(store);
+function checkDuplicate(message, timestampMs) {
+  cleanupExpired();
 
   const text = message.text || "";
   if (!text || text.trim().length < 3) {
@@ -46,9 +46,24 @@ function checkDuplicate(message, timestampMs, store) {
 
   const ordinalGroup = getOrdinalGroup(words);
   const threshold = config.dedup?.similarityThreshold || 0.6;
-  const ts = timestampMs || Date.now();
+  const ts = timestampMs != null ? timestampMs : Date.now();
 
-  for (const stored of store) {
+  let alreadyInStore = false;
+
+  for (const stored of messageStore) {
+    // Self-match: this message is already in the store (e.g. real-time
+    // stored it, then the API processes the same message).
+    if (stored.messageId === message.id) {
+      alreadyInStore = true;
+      continue;
+    }
+
+    // Timestamp guard: never flag an older message as a duplicate of a
+    // newer one.  When the real-time listener stores a newer duplicate B'
+    // before the API processes the older original B, this prevents B from
+    // being incorrectly flagged as a duplicate of B'.
+    if (stored.timestamp > ts) continue;
+
     if (ordinalGroup !== stored.ordinalGroup) {
       continue;
     }
@@ -59,7 +74,6 @@ function checkDuplicate(message, timestampMs, store) {
     // false positives where only the location/entity name differs.
     // e.g. "قصف مدفعي طال قبريخا" vs "قصف مدفعي طال النبطية"
     //      3 shared / 5 unique = 0.6, but these are different events.
-    //      Only exact or near-exact word matches should dedup short messages.
     const minWordsForRelaxedThreshold = 6;
     const effectiveThreshold =
       signature.size < minWordsForRelaxedThreshold &&
@@ -69,7 +83,7 @@ function checkDuplicate(message, timestampMs, store) {
 
     if (similarity >= effectiveThreshold) {
       // Also store the duplicate so it extends the dedup window
-      store.push({
+      messageStore.push({
         messageId: message.id,
         channelId: message.channelId || null,
         text: normalizeArabic(text),
@@ -87,38 +101,39 @@ function checkDuplicate(message, timestampMs, store) {
     }
   }
 
-  store.push({
-    messageId: message.id,
-    channelId: message.channelId || null,
-    text: normalizeArabic(text),
-    signature,
-    ordinalGroup,
-    timestamp: ts,
-  });
+  // Only add to store if not already present (avoid duplicate entries)
+  if (!alreadyInStore) {
+    messageStore.push({
+      messageId: message.id,
+      channelId: message.channelId || null,
+      text: normalizeArabic(text),
+      signature,
+      ordinalGroup,
+      timestamp: ts,
+    });
+  }
 
   return { isDuplicate: false, duplicateOf: null, similarity: 0 };
 }
 
 function getStoreStats() {
-  cleanupExpired(globalStore);
+  cleanupExpired();
   return {
-    storedMessages: globalStore.length,
+    storedMessages: messageStore.length,
     timeWindowMs: HOUR_MS,
     similarityThreshold: config.dedup?.similarityThreshold || 0.6,
   };
 }
 
 // Filter duplicates from a batch of messages (for the messages API).
-// Uses a LOCAL store per call — completely isolated from the real-time listener's
-// global store. This prevents a newer duplicate (seen by real-time) from causing
-// the older original to disappear from the API.
+// Uses the GLOBAL messageStore so dedup works across real-time and API calls.
+// Protected from false-positives by:
+//   1. Self-match skip — same message ID is never a duplicate
+//   2. Timestamp guard — older originals are never flagged as duplicates of newer copies
 // Processes messages in chronological order (oldest first) so the first occurrence is kept.
 // Duplicates are removed by default. Set `showDuplicates: true` to annotate instead of remove.
 function filterDuplicates(messages, { showDuplicates = false } = {}) {
   if (!config.dedup?.enabled) return messages;
-
-  // Local store — only this batch's messages are compared against each other
-  const localStore = [];
 
   // Sort by date ascending (oldest first) so first occurrence is kept as non-duplicate
   const sorted = [...messages].sort((a, b) => (a.date || 0) - (b.date || 0));
@@ -126,7 +141,7 @@ function filterDuplicates(messages, { showDuplicates = false } = {}) {
 
   for (const msg of sorted) {
     const msgTimestamp = (msg.date || 0) * 1000; // Unix seconds -> ms
-    const result = checkDuplicate(msg, msgTimestamp, localStore);
+    const result = checkDuplicate(msg, msgTimestamp);
 
     if (result.isDuplicate) {
       msg.isDuplicate = true;
@@ -150,7 +165,7 @@ function filterDuplicates(messages, { showDuplicates = false } = {}) {
 
 // Reset store (for testing only)
 function _resetStore() {
-  globalStore.length = 0;
+  messageStore.length = 0;
 }
 
 module.exports = { checkDuplicate, getStoreStats, cleanupExpired, filterDuplicates, _resetStore };
