@@ -100,24 +100,37 @@ function getStoreStats() {
   };
 }
 
-// Filter duplicates from a batch of messages (for the messages API).
+// Annotate duplicates in a batch of messages (for the messages API).
 // Uses the GLOBAL messageStore so results are cached across API calls and real-time.
 // Uses each message's actual `date` field (Unix timestamp) as the store timestamp.
 // Processes messages in chronological order (oldest first) so the first occurrence is kept.
-// Returns a new array with duplicates removed.
-function filterDuplicates(messages) {
+// Duplicates are NOT removed by default \u2014 they are annotated with isDuplicate, duplicateOf, similarity.
+// If `hideDuplicates` is true, duplicate messages are excluded from the result.
+function filterDuplicates(messages, { hideDuplicates = false } = {}) {
   if (!config.dedup?.enabled) return messages;
 
-  // Sort by date ascending (oldest first) so first occurrence is kept
+  // Sort by date ascending (oldest first) so first occurrence is kept as non-duplicate
   const sorted = [...messages].sort((a, b) => (a.date || 0) - (b.date || 0));
   const results = [];
 
   for (const msg of sorted) {
-    const msgTimestamp = (msg.date || 0) * 1000; // Unix seconds → ms
+    const msgTimestamp = (msg.date || 0) * 1000; // Unix seconds -> ms
     const result = checkDuplicate(msg, msgTimestamp);
-    if (!result.isDuplicate) {
-      results.push(msg);
+
+    if (result.isDuplicate) {
+      msg.isDuplicate = true;
+      msg.duplicateOf = result.duplicateOf;
+      msg.duplicateChannel = result.duplicateChannel;
+      msg.similarity = result.similarity;
+    } else {
+      msg.isDuplicate = false;
     }
+
+    if (hideDuplicates && result.isDuplicate) {
+      continue;
+    }
+
+    results.push(msg);
   }
 
   return results;
