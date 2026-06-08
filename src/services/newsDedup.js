@@ -24,12 +24,15 @@ function buildTextSignature(text) {
 
 function cleanupExpired() {
   const now = Date.now();
-  while (messageStore.length > 0 && now - messageStore[0].timestamp > HOUR_MS) {
-    messageStore.shift();
+  // Filter all expired entries (store may be unsorted when mixing real-time & historical timestamps)
+  for (let i = messageStore.length - 1; i >= 0; i--) {
+    if (now - messageStore[i].timestamp > HOUR_MS) {
+      messageStore.splice(i, 1);
+    }
   }
 }
 
-function checkDuplicate(message) {
+function checkDuplicate(message, timestampMs) {
   cleanupExpired();
 
   const text = message.text || "";
@@ -44,12 +47,9 @@ function checkDuplicate(message) {
   }
   const ordinalGroup = getOrdinalGroup(words);
   const threshold = config.dedup?.similarityThreshold || 0.6;
+  const ts = timestampMs || Date.now();
 
   for (const stored of messageStore) {
-    // Hard filter: different ordinal groups = different events = NOT duplicate
-    // Example: "غارة على بيروت" (group 0) vs "غارة أخرى على بيروت" (group 1) = different
-    // Example: "غارة أخرى على بيروت" (group 1) vs "غارة ثالثة على بيروت" (group 2) = different
-    // Example: "غارة أخرى على بيروت" (group 1) vs "غارة ثانية على بيروت" (group 1) = same group, compare normally
     if (ordinalGroup !== stored.ordinalGroup) {
       continue;
     }
@@ -63,7 +63,7 @@ function checkDuplicate(message) {
         text: normalizeArabic(text),
         signature,
         ordinalGroup,
-        timestamp: Date.now(),
+        timestamp: ts,
       });
 
       return {
@@ -81,7 +81,7 @@ function checkDuplicate(message) {
     text: normalizeArabic(text),
     signature,
     ordinalGroup,
-    timestamp: Date.now(),
+    timestamp: ts,
   });
 
   return { isDuplicate: false, duplicateOf: null, similarity: 0 };
@@ -96,4 +96,32 @@ function getStoreStats() {
   };
 }
 
-module.exports = { checkDuplicate, getStoreStats, cleanupExpired };
+// Filter duplicates from a batch of messages (for the messages API).
+// Uses the GLOBAL messageStore so results are cached across API calls and real-time.
+// Uses each message's actual `date` field (Unix timestamp) as the store timestamp.
+// Processes messages in chronological order (oldest first) so the first occurrence is kept.
+// Returns a new array with duplicates removed.
+function filterDuplicates(messages) {
+  if (!config.dedup?.enabled) return messages;
+
+  // Sort by date ascending (oldest first) so first occurrence is kept
+  const sorted = [...messages].sort((a, b) => (a.date || 0) - (b.date || 0));
+  const results = [];
+
+  for (const msg of sorted) {
+    const msgTimestamp = (msg.date || 0) * 1000; // Unix seconds → ms
+    const result = checkDuplicate(msg, msgTimestamp);
+    if (!result.isDuplicate) {
+      results.push(msg);
+    }
+  }
+
+  return results;
+}
+
+// Reset store (for testing only)
+function _resetStore() {
+  messageStore.length = 0;
+}
+
+module.exports = { checkDuplicate, getStoreStats, cleanupExpired, filterDuplicates, _resetStore };

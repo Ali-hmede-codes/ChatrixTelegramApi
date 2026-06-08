@@ -1,6 +1,7 @@
 const express = require("express");
 const config = require("../config");
 const { getMessages, getMessage } = require("../services/messages");
+const { filterDuplicates } = require("../services/newsDedup");
 const registry = require("../services/channelRegistry");
 
 function resolveChannel(param) {
@@ -17,7 +18,8 @@ router.get("/:channel", async (req, res) => {
     const limit = parseInt(req.query.limit) || config.messages.defaultLimit;
     const offset = parseInt(req.query.offset) || 0;
     const messages = await getMessages(identifier, limit, offset);
-    res.json({ success: true, data: messages });
+    const deduped = filterDuplicates(messages);
+    res.json({ success: true, data: deduped });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
