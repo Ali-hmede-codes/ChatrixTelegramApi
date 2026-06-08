@@ -1,4 +1,4 @@
-const { normalizeArabic, getArabicWords } = require("../utils/arabicDetection");
+const { normalizeArabic, getArabicWords, getOrdinalGroup } = require("../utils/arabicDetection");
 const config = require("../config");
 
 const messageStore = [];
@@ -37,14 +37,23 @@ function checkDuplicate(message) {
     return { isDuplicate: false, duplicateOf: null, similarity: 0 };
   }
 
-  const signature = buildTextSignature(text);
+  const words = getArabicWords(text);
+  const signature = new Set(words);
   if (signature.size < 1) {
     return { isDuplicate: false, duplicateOf: null, similarity: 0 };
   }
-
+  const ordinalGroup = getOrdinalGroup(words);
   const threshold = config.dedup?.similarityThreshold || 0.6;
 
   for (const stored of messageStore) {
+    // Hard filter: different ordinal groups = different events = NOT duplicate
+    // Example: "غارة على بيروت" (group 0) vs "غارة أخرى على بيروت" (group 1) = different
+    // Example: "غارة أخرى على بيروت" (group 1) vs "غارة ثالثة على بيروت" (group 2) = different
+    // Example: "غارة أخرى على بيروت" (group 1) vs "غارة ثانية على بيروت" (group 1) = same group, compare normally
+    if (ordinalGroup !== stored.ordinalGroup) {
+      continue;
+    }
+
     const similarity = jaccardSimilarity(signature, stored.signature);
     if (similarity >= threshold) {
       // Also store the duplicate so it extends the dedup window
@@ -53,6 +62,7 @@ function checkDuplicate(message) {
         channelId: message.channelId || null,
         text: normalizeArabic(text),
         signature,
+        ordinalGroup,
         timestamp: Date.now(),
       });
 
@@ -70,6 +80,7 @@ function checkDuplicate(message) {
     channelId: message.channelId || null,
     text: normalizeArabic(text),
     signature,
+    ordinalGroup,
     timestamp: Date.now(),
   });
 

@@ -15,50 +15,54 @@ const ALEF_NORMALIZE_MAP = {
 const YAA_NORMALIZE = { "\u0649": "\u064A" };
 const TAA_NORMALIZE = { "\u0629": "\u062A" };
 
-// News dedup noise words: ordinal/qualifier words that should be REMOVED before
-// comparing news, so that "غارة على بيروت" and "غارة أخرى على بيروت" match.
-// IMPORTANT: These must use NORMALIZED forms (after taa→ta, yaa→ya, alef→alef normalizations)
-// because normalizeArabic() runs before this filter in getArabicWords()
-const NEWS_NOISE_WORDS = new Set([
-  // another / other
-  "\u0627\u062E\u0631\u064A",   // اخري (original: أخرى)
-  "\u0627\u062E\u0631",       // اخر (original: آخر)
-  // second
-  "\u062B\u0627\u0646\u064A\u062A", // ثانيت (original: ثانية)
-  "\u062B\u0627\u0646",       // ثان (original: ثان)
-  // third
-  "\u062B\u0627\u0644\u062B\u062A", // ثالثت (original: ثالثة)
-  "\u062B\u0627\u0644\u062B",   // ثالث (original: ثالث)
-  // fourth
-  "\u0631\u0627\u0628\u0639\u062A", // رابعت (original: رابعة)
-  "\u0631\u0627\u0628\u0639",   // رابع (original: رابع)
-  // fifth
-  "\u062E\u0627\u0645\u0633\u062A", // خامست (original: خامسة)
-  "\u062E\u0627\u0645\u0633",   // خامس (original: خامس)
-  // sixth
-  "\u0633\u0627\u062F\u0633\u062A", // سادست (original: سادسة)
-  "\u0633\u0627\u062F\u0633",   // سادس (original: سادس)
-  // seventh
-  "\u0633\u0627\u0628\u0639\u062A", // سابعت (original: سابعة)
-  "\u0633\u0627\u0628\u0639",   // سابع (original: سابع)
-  // eighth
-  "\u062B\u0627\u0645\u0646\u062A", // ثامنت (original: ثامنة)
-  "\u062B\u0627\u0645\u0646",   // ثامن (original: ثامن)
-  // ninth
-  "\u062A\u0627\u0633\u0639\u062A", // تاسعت (original: تاسعة)
-  "\u062A\u0627\u0633\u0639",   // تاسع (original: تاسع)
-  // tenth
-  "\u0639\u0627\u0634\u0631\u062A", // عاشرت (original: عاشرة)
-  "\u0639\u0627\u0634\u0631",   // عاشر (original: عاشر)
-  // new
-  "\u062C\u062F\u064A\u062F\u062A", // جديدت (original: جديدة)
-  "\u062C\u062F\u064A\u062F",   // جديد (original: جديد)
-  // مرة (once/time) - used in "مرة أخرى"
-  "\u0645\u0631\u0629",         // مره (original: مرة)
-]);
+// Ordinal words for news dedup: each word indicates a DIFFERENT event.
+// If two messages have DIFFERENT ordinal words, they are NOT duplicates (different events).
+// If they have the SAME ordinal word (or both have none), normal similarity comparison applies.
+// Each word gets its own unique group number.
+// IMPORTANT: These must use NORMALIZED forms (after taa→ta, yaa→ya, alef→alef)
+const ORDINAL_WORD_MAP = {
+  // أخرى / آخر (another)
+  "\u0627\u062E\u0631\u064A": 1,  // اخري (original: أخرى - normalized ي from ى)
+  "\u0627\u062E\u0631": 2,    // اخر (original: آخر)
+  // ثانية / ثان (second)
+  "\u062B\u0627\u0646\u064A\u062A": 3, // ثانيت (original: ثانية)
+  "\u062B\u0627\u0646": 4,    // ثان (original: ثان)
+  // جديدة / جديد (new)
+  "\u062C\u062F\u064A\u062F\u062A": 5, // جديدت (original: جديدة)
+  "\u062C\u062F\u064A\u062F": 6,    // جديد (original: جديد)
+  // ثالثة / ثالث (third)
+  "\u062B\u0627\u0644\u062B\u062A": 7, // ثالثت (original: ثالثة)
+  "\u062B\u0627\u0644\u062B": 8,    // ثالث (original: ثالث)
+  // رابعة / رابع (fourth)
+  "\u0631\u0627\u0628\u0639\u062A": 9, // رابعت (original: رابعة)
+  "\u0631\u0627\u0628\u0639": 10,   // رابع (original: رابع)
+  // خامسة / خامس (fifth)
+  "\u062E\u0627\u0645\u0633\u062A": 11, // خامست (original: خامسة)
+  "\u062E\u0627\u0645\u0633": 12,   // خامس (original: خامس)
+  // سادسة / سادس (sixth)
+  "\u0633\u0627\u062F\u0633\u062A": 13, // سادست (original: سادسة)
+  "\u0633\u0627\u062F\u0633": 14,   // سادس (original: سادس)
+  // سابعة / سابع (seventh)
+  "\u0633\u0627\u0628\u0639\u062A": 15, // سابعت (original: سابعة)
+  "\u0633\u0627\u0628\u0639": 16,   // سابع (original: سابع)
+  // ثامنة / ثامن (eighth)
+  "\u062B\u0627\u0645\u0646\u062A": 17, // ثامنت (original: ثامنة)
+  "\u062B\u0627\u0645\u0646": 18,   // ثامن (original: ثامن)
+  // تاسعة / تاسع (ninth)
+  "\u062A\u0627\u0633\u0639\u062A": 19, // تاسعت (original: تاسعة)
+  "\u062A\u0627\u0633\u0639": 20,   // تاسع (original: تاسع)
+  // عاشرة / عاشر (tenth)
+  "\u0639\u0627\u0634\u0631\u062A": 21, // عاشرت (original: عاشرة)
+  "\u0639\u0627\u0634\u0631": 22,   // عاشر (original: عاشر)
+};
 
-function removeNewsNoiseWords(words) {
-  return words.filter((w) => !NEWS_NOISE_WORDS.has(w));
+function getOrdinalGroup(words) {
+  for (const word of words) {
+    if (ORDINAL_WORD_MAP[word] !== undefined) {
+      return ORDINAL_WORD_MAP[word];
+    }
+  }
+  return 0; // no ordinal word found
 }
 
 function detectArabic(text) {
@@ -105,10 +109,9 @@ function normalizeArabic(text) {
 
 function getArabicWords(text) {
   const normalized = normalizeArabic(text);
-  const words = normalized
+  return normalized
     .split(/\s+/)
     .filter((w) => w.length > 1 && ARABIC_REGEX_NOG.test(w));
-  return removeNewsNoiseWords(words);
 }
 
-module.exports = { detectArabic, removeTashkeel, normalizeArabic, removeNewsNoiseWords, getArabicWords };
+module.exports = { detectArabic, removeTashkeel, normalizeArabic, getOrdinalGroup, getArabicWords };
