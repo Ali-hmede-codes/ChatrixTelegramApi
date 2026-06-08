@@ -50,6 +50,10 @@ function checkDuplicate(message, timestampMs) {
   const ts = timestampMs || Date.now();
 
   for (const stored of messageStore) {
+    // Skip self-matches: same message ID means it's the same message,
+    // not a duplicate (e.g. real-time already stored it, then API fetches it).
+    if (stored.messageId === message.id) continue;
+
     if (ordinalGroup !== stored.ordinalGroup) {
       continue;
     }
